@@ -1,0 +1,5 @@
+package wikiprocessor
+
+class Processor {
+
+}
