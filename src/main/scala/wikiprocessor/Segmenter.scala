@@ -1,6 +1,5 @@
 package wikiprocessor
 
-class ProcessorSuite {
-
+class Segmenter {
 
 }
