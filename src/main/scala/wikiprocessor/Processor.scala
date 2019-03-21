@@ -18,14 +18,18 @@ class Processor {
 object Processor {
   def clean(raw: String): String = {
     val eraserRegex = List(
-      "<ref( name=)?>.*?</ref>",
-      "<ref.*?/>",
+      "</?blockquote>",
+      "<math>.*?</math>",
+      "<ref[^\\/\\>]*>.*?((</ref>)|(</>))",
+      "<ref[^\\/\\>]*?/>",
       "</ref>",
-      "<ref name=Note.*?>",
+      "<ref name=>.{1,50}</>",
+      "<ref name=[^\\/\\>]*?>",
       "<#REDIRECT.*?>",
       "== Sources ==.*",
       "== References ==.*",
       "=?==.*?===?",
+      "\\{\\{cite .*?\\}\\}",
       "\\{\\{.*?\\}\\}:?",
       "'''?",
       "\\[\\[File:.*?\n",
