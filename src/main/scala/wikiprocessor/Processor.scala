@@ -56,7 +56,7 @@ object Processor {
     val out_stream = new java.io.PrintStream(out_file)
 
     val eventReader = new XMLEventReader(in)
-    var line = 0;
+    var line = 0
 
     val segmenter = new Segmenter("/home/troy/Downloads/Wikipedia Data/bigrams/enwiki-20190301-pages-articles.bigrams", 100)
 
@@ -82,6 +82,6 @@ object Processor {
         case _ => { line += 1 }
       }
     }
-    segmenter.closeAll
+    segmenter.closeAll()
   }
 }
