@@ -77,10 +77,14 @@ object Processor {
         case EvElemStart(_, "text", _, _) => {
           val rawText = getUntilEndTag("text", "")
           val cleaned = clean(rawText)
-          val tokens = cleaned.replace("\n", " ").toLowerCase.split(" ", -1)
+          val tokens = cleaned.
+          replace("\n", " ").
+          replace(".", "").
+          toLowerCase.split(" ", -1)
 
           article += 1
-          if (article % 1000 == 0) print("\n" + java.time.Instant.now() + " [" + article + "]" )
+          if (article == 1) print("\n" + java.time.Instant.now() + " [Start]" )
+          else if (article % 1000 == 0) print("\n" + java.time.Instant.now() + " [" + article + "]" )
           else if (article % 50 == 0) print(".")
 
           for((a, b) <- tokens zip tokens.drop(1) if a.nonEmpty && b.nonEmpty) {
