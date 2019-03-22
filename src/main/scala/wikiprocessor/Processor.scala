@@ -56,7 +56,7 @@ object Processor {
     val out_stream = new java.io.PrintStream(out_file)
 
     val eventReader = new XMLEventReader(in)
-    var line = 0
+    var article = 0
 
     val segmenter = new Segmenter("/home/troy/Downloads/Wikipedia Data/bigrams/enwiki-20190301-pages-articles.bigrams", 100)
 
@@ -64,22 +64,34 @@ object Processor {
 
     def nextLine: XMLEvent = if (eventReader.hasNext) eventReader.next() else null
 
-    def getUntilEndTag(tagName: String): String = nextLine match {
-      case null => ""
-      case EvElemEnd(_, tag) if tag == tagName => ""
-      case EvText(text: String) => "<" + text + ">" + getUntilEndTag(tagName)
-      case _ => getUntilEndTag(tagName)
+    def getUntilEndTag(tagName: String, prepend: String): String = nextLine match {
+      case null => prepend
+      case EvElemEnd(_, tag) if tag == tagName => prepend
+      case EvText(text: String) => getUntilEndTag(tagName, prepend + "<" + text + ">")
+      case _ => getUntilEndTag(tagName, prepend)
     }
 
     while (eventReader.hasNext) {
+
       eventReader.next() match {
         case EvElemStart(_, "text", _, _) => {
-          val rawText = getUntilEndTag("text")
-          val allText = clean(rawText)
+          val rawText = getUntilEndTag("text", "")
+          val cleaned = clean(rawText)
+          val tokens = cleaned.replace("\n", " ").toLowerCase.split(" ", -1)
 
-          line += 1
+          article += 1
+          if (article % 1000 == 0) print("\n" + java.time.Instant.now() + " [" + article + "]" )
+          else if (article % 50 == 0) print(".")
+
+          for((a, b) <- tokens zip tokens.drop(1) if a.nonEmpty && b.nonEmpty) {
+            val bigram = a + " " + b
+            segmenter.write(bigram)
+          }
+
+          out_stream.println(cleaned)
+          out_stream.flush()
         }
-        case _ => { line += 1 }
+        case _ =>
       }
     }
     segmenter.closeAll()

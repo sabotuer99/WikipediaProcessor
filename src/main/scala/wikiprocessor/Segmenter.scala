@@ -13,6 +13,7 @@ class Segmenter(baseFile: String, segments: Int) {
   def write(line: String): Unit = {
     val index = Math.abs(MurmurHash3.stringHash(line)) % segments
     streamMap(index).println(line)
+    streamMap(index).flush()
   }
 
 }
