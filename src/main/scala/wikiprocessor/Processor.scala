@@ -10,16 +10,44 @@ import scala.xml.pull._
 class Processor {
 
 
-
-
-
 }
 
 object Processor {
+
+  def removeBalancedTag(beginTag: String, endTag: String, text: String): String = {
+    def removeBalancedTagIter(body: String, acc: String, depth: Int): String =
+      if (body == "") acc
+      else {
+        val nextOpen = body.indexOf(beginTag)
+        val nextClose = body.indexOf(endTag)
+        val diff = nextClose - nextOpen
+        (diff, depth) match {
+          // no more tags
+          case (0, _) => acc + body
+          // first opening tag
+          case(_, 0) => diff match {
+            case pos if pos > 0 => removeBalancedTagIter(body.substring(nextOpen + beginTag.length), acc +
+              body.substring(0,nextOpen), 1)
+            // if depth is zero and we encounter an end tag first, just return what we have, not well formed
+            case error if error < 0 => acc + body
+          }
+          // begin tag first, advance cursor and increase depth
+          case (diff, i) if diff > 0 && i > 0 =>
+            removeBalancedTagIter(body.substring(nextOpen + beginTag.length), acc, depth + 1)
+          // end tag first, advance cursor and decrease depth
+          case (diff, i) if diff < 0 && i > 0 =>
+            removeBalancedTagIter(body.substring(nextClose + endTag.length), acc, depth - 1)
+        }
+      }
+
+    removeBalancedTagIter(text, "", 0)
+  }
+
   def clean(raw: String): String = {
     val eraserRegex = List(
       "</?blockquote>",
       "<math>.*?</math>",
+      "\\{\\| class=\"[^\"]*wikitable[^\"]*\".*?\\|\\}",
       "<ref[^\\/\\>]*>.*?((</ref>)|(</>))",
       "<ref[^\\/\\>]*?/>",
       "</ref>",
@@ -29,8 +57,6 @@ object Processor {
       "== Sources ==.*",
       "== References ==.*",
       "=?==.*?===?",
-      "\\{\\{cite .*?\\}\\}",
-      "\\{\\{.*?\\}\\}:?",
       "'''?",
       "\\[\\[File:.*?\n",
       "\\[\\[Category:.*?\\]\\]",
@@ -41,12 +67,15 @@ object Processor {
       "<\n\\|.*?>"
     )
 
-    raw.
-      replaceAll("(?s)(" + eraserRegex.mkString(")|(") + ")" , "").
+    removeBalancedTag("{{", "}}", raw).
+      replaceAll("(?s)(" + eraserRegex.mkString(")|(") + ")", "").
       replaceAll("nbsp;", " ").
       replaceAll("[^0-9A-Za-z\\- \n.']", " ").
-      replaceAll(" +", " ").
       replaceAll("\n+", "\n").
+      // second pass trim, eliminate leading/trailing quote and dash, and stand alone numbers
+      replaceAll("((?<=[\n\\s])')|('(?=[\n\\s]))|(--+)|((?=[\n\\s])-)|(-(?=[\n\\s]))|(\\b-?[0-9]+\\b)", "").
+      replaceAll(" - ", " ").
+      replaceAll(" +", " ").
       trim
   }
 
@@ -59,7 +88,6 @@ object Processor {
     var article = 0
 
     val segmenter = new Segmenter("/home/troy/Downloads/Wikipedia Data/bigrams/enwiki-20190301-pages-articles.bigrams", 100)
-
 
 
     def nextLine: XMLEvent = if (eventReader.hasNext) eventReader.next() else null
@@ -78,16 +106,16 @@ object Processor {
           val rawText = getUntilEndTag("text", "")
           val cleaned = clean(rawText)
           val tokens = cleaned.
-          replace("\n", " ").
-          replace(".", "").
-          toLowerCase.split(" ", -1)
+            replace("\n", " ").
+            replace(".", "").
+            toLowerCase.split(" ", -1)
 
           article += 1
-          if (article == 1) print("\n" + java.time.Instant.now() + " [Start]" )
-          else if (article % 1000 == 0) print("\n" + java.time.Instant.now() + " [" + article + "]" )
+          if (article == 1) print("\n" + java.time.Instant.now() + " [Start]")
+          else if (article % 1000 == 0) print("\n" + java.time.Instant.now() + " [" + article + "]")
           else if (article % 50 == 0) print(".")
 
-          for((a, b) <- tokens zip tokens.drop(1) if a.nonEmpty && b.nonEmpty) {
+          for ((a, b) <- tokens zip tokens.drop(1) if a.nonEmpty && b.nonEmpty) {
             val bigram = a + " " + b
             segmenter.write(bigram)
           }
