@@ -60,4 +60,11 @@ class ProcessorSuite extends FunSuite {
     println(clean)
   }
 
+  test("braces corner cases"){
+    val clean1 = Processor.clean("{{}}test{{}}")
+    assert(clean1 == "test")
+    val clean2 = Processor.clean("}}invalid}}")
+    assert(clean2 == "invalid")
+  }
+
 }
