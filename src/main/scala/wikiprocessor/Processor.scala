@@ -21,21 +21,23 @@ object Processor {
         val nextOpen = body.indexOf(beginTag)
         val nextClose = body.indexOf(endTag)
         val diff = nextClose - nextOpen
-        (diff, depth) match {
+        (nextOpen, nextClose, depth) match {
           // no more tags
-          case (0, _) => acc + body
+          case (open, close, _) if open == close => acc + body
+          // zero depth with endTag first is invalid
+          case (-1, close, 0) if close > -1 => acc + body
           // first opening tag
-          case(_, 0) => diff match {
+          case(_, _, 0) => diff match {
             case pos if pos > 0 => removeBalancedTagIter(body.substring(nextOpen + beginTag.length), acc +
               body.substring(0,nextOpen), 1)
             // if depth is zero and we encounter an end tag first, just return what we have, not well formed
             case error if error < 0 => acc + body
           }
           // begin tag first, advance cursor and increase depth
-          case (diff, i) if diff > 0 && i > 0 =>
+          case (open, close, i) if close > open && i > 0 =>
             removeBalancedTagIter(body.substring(nextOpen + beginTag.length), acc, depth + 1)
           // end tag first, advance cursor and decrease depth
-          case (diff, i) if diff < 0 && i > 0 =>
+          case (open, close, i) if open > close && i > 0 =>
             removeBalancedTagIter(body.substring(nextClose + endTag.length), acc, depth - 1)
         }
       }
