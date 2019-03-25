@@ -1,16 +1,11 @@
 package wikiprocessor
 
-import java.util.regex.Pattern
+import java.util
 
-import scala.collection.mutable
-import scala.xml.pull.XMLEventReader
 import scala.io.Source
-import scala.xml.pull._
-
-class Processor {
+import scala.xml.pull.{XMLEventReader, _}
 
 
-}
 
 object Processor {
 
@@ -81,19 +76,28 @@ object Processor {
       trim
   }
 
+  val processorCount: Int = Runtime.getRuntime.availableProcessors()
+  val rawArticleQueue: util.concurrent.BlockingDeque[String] =
+    new java.util.concurrent.LinkedBlockingDeque[String](processorCount * 100)
+  val bigramQueue: util.concurrent.BlockingDeque[String] =
+    new java.util.concurrent.LinkedBlockingDeque[String](processorCount * 25000)
+  val cleanArticleQueue: util.concurrent.BlockingDeque[String] =
+    new java.util.concurrent.LinkedBlockingDeque[String](processorCount * 100)
+
   def main(args: Array[String]) {
     val in = Source.fromFile("/home/troy/Downloads/Wikipedia Data/enwiki-20190301-pages-articles.xml")
     val out_file = new java.io.FileOutputStream("/home/troy/Downloads/Wikipedia Data/enwiki-20190301-pages-articles.cleaned.txt")
     val out_stream = new java.io.PrintStream(out_file)
-
+    val segmenter = new Segmenter("/home/troy/Downloads/Wikipedia Data/bigrams/enwiki-20190301-pages-articles.bigrams", 100)
     val eventReader = new XMLEventReader(in)
+
+    // start all the Runnables
+    0 until processorCount foreach(_ => new Thread(new RawArticleProcessor).start())
+    new Thread(new BigramWriter(segmenter)).start()
+    new Thread(new CleanTextWriter(out_stream)).start()
     var article = 0
 
-    val segmenter = new Segmenter("/home/troy/Downloads/Wikipedia Data/bigrams/enwiki-20190301-pages-articles.bigrams", 100)
-
-
     def nextLine: XMLEvent = if (eventReader.hasNext) eventReader.next() else null
-
     def getUntilEndTag(tagName: String, prepend: String): String = nextLine match {
       case null => prepend
       case EvElemEnd(_, tag) if tag == tagName => prepend
@@ -102,32 +106,65 @@ object Processor {
     }
 
     while (eventReader.hasNext) {
-
       eventReader.next() match {
         case EvElemStart(_, "text", _, _) => {
           val rawText = getUntilEndTag("text", "")
-          val cleaned = clean(rawText)
-          val tokens = cleaned.
-            replace("\n", " ").
-            replace(".", "").
-            toLowerCase.split(" ", -1)
+          rawArticleQueue.put(rawText)
 
           article += 1
           if (article == 1) print("\n" + java.time.Instant.now() + " [Start]")
-          else if (article % 1000 == 0) print("\n" + java.time.Instant.now() + " [" + article + "]")
-          else if (article % 50 == 0) print(".")
-
-          for ((a, b) <- tokens zip tokens.drop(1) if a.nonEmpty && b.nonEmpty) {
-            val bigram = a + " " + b
-            segmenter.write(bigram)
+          else if (article % 1000 == 0) {
+            print("\nRawBuffer: " + rawArticleQueue.size +
+              " CleanBuffer: " + cleanArticleQueue.size +
+              " BigramQueue: " + bigramQueue.size)
+            print("\n" + java.time.Instant.now() + " [" + article + "]")
           }
-
-          out_stream.println(cleaned)
-          out_stream.flush()
+          else if (article % 50 == 0) print(".")
         }
         case _ =>
       }
     }
     segmenter.closeAll()
+    out_stream.close()
+  }
+
+  class RawArticleProcessor() extends Runnable{
+    override def run(): Unit = {
+      while(true){
+        val rawText = rawArticleQueue.take()
+        val cleaned = clean(rawText)
+        val tokens = cleaned.
+          replace("\n", " ").
+          replace(".", "").
+          toLowerCase.split(" ", -1)
+
+        cleanArticleQueue.put(cleaned)
+
+        for ((a, b) <- tokens zip tokens.drop(1) if a.nonEmpty && b.nonEmpty) {
+          val bigram = a + " " + b
+          bigramQueue.put(bigram)
+        }
+
+      }
+    }
+  }
+
+  class BigramWriter(segmenter: Segmenter) extends Runnable{
+    override def run(): Unit = {
+      while(true){
+        val bigram = bigramQueue.take()
+        segmenter.write(bigram)
+      }
+    }
+  }
+
+  class CleanTextWriter(out_stream: java.io.PrintStream) extends Runnable{
+    override def run(): Unit = {
+      while(true){
+        val cleaned = cleanArticleQueue.take()
+        out_stream.println(cleaned)
+        out_stream.flush()
+      }
+    }
   }
 }
