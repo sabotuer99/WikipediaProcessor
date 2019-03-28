@@ -27,7 +27,6 @@ class Segmenter(baseFile: String, segments: Int) {
       streamMap(entry._1).println(entry._2.map(_._2) mkString "\n")
       streamMap(entry._1).flush()
     })
-    print("*")
     buffer.clear()
   }
 
